@@ -81,17 +81,20 @@ if (!net.brehaut) {
     // Package wide variables
 
     // becomes the top level prototype object
+    // 原型
     var color;
 
     /* registered_models contains the template objects for all the
      * models that have been registered for the color class.
      */
+    // 注册的函数
     var registered_models = [];
 
 
     /* factories contains methods to create new instance of
      * different color models that have been registered.
      */
+    // 各种对象的创建工厂，是一个策略模式
     var factories = {};
 
     // Utility functions
@@ -99,6 +102,7 @@ if (!net.brehaut) {
     /* object is Douglas Crockfords object function for prototypal
      * inheritance.
      */
+    // this指的是net.brehaut对象，object函数应该是寄生组合继承的函数
     if (!this.object) {
         this.object = function(o) {
             function F() {}
@@ -111,6 +115,7 @@ if (!net.brehaut) {
     /* takes a value, converts to string if need be, then pads it
      * to a minimum length.
      */
+    // 取值，转换为字符串，如果小于指定长度，将其用0填充到指定长度。
     function pad(val, len) {
         val = val.toString();
         var padded = [];
@@ -127,6 +132,7 @@ if (!net.brehaut) {
     /* takes a string and returns a new string with the first letter
      * capitalised
      */
+    // 接受一个字符串并返回一个首字母大写的新字符串
     function capitalise(s) {
         return s.slice(0, 1).toUpperCase() + s.slice(1);
     }
@@ -154,6 +160,7 @@ if (!net.brehaut) {
      * to the color code, and extend the color API with the new
      * operation that model provides. see before for examples
      */
+    //
     function registerModel(name, model) {
         var proto = object(color);
         var fields = []; // used for cloning and generating accessors
