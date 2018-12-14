@@ -102,7 +102,7 @@ if (!net.brehaut) {
     /* object is Douglas Crockfords object function for prototypal
      * inheritance.
      */
-    // this指的是net.brehaut对象，object函数应该是寄生组合继承的函数
+    // this指的是net.brehaut对象，object函数应该是寄生继承函数
     if (!this.object) {
         this.object = function(o) {
             function F() {}
@@ -139,6 +139,7 @@ if (!net.brehaut) {
 
     /* removes leading and trailing whitespace
      */
+    // 一个不错的trim实现
     function trim(str) {
         return str.replace(/^\s+|\s+$/g, '');
     }
@@ -160,37 +161,49 @@ if (!net.brehaut) {
      * to the color code, and extend the color API with the new
      * operation that model provides. see before for examples
      */
-    //
+    // 核心函数，用于注册不同的颜色模型，如rgb、rgba、hls等。最终所有的方法都会注册到基类原型color上，私有方法和属性会注册到子类的原型上，子类必须实现一个fromObject方法。通过调用其他模型在color注册的方法，能够实现将一种模式转为另一种模式，非常便捷。
     function registerModel(name, model) {
+		// 使用寄生继承，用于创建原型的继承
         var proto = object(color);
+		// 用于克隆的字段名
         var fields = []; // used for cloning and generating accessors
 
+		// 生成转换的名字
         var to_meth = 'to' + capitalise(name);
 
+		// 模式转换，主要是用于其他模型类的对象调用当前模式的方法，自动将对象转为当前模式的对象。
         function convertAndApply(meth) {
             return function() {
                 return meth.apply(this[to_meth](), arguments);
             };
         }
 
+		// 将model属性值都赋值到克隆后的原型上面
         for (var key in model)
             if (model.hasOwnProperty(key)) {
                 proto[key] = model[key];
                 var prop = proto[key];
-
+				
+				// 私有的不克隆到color上面
                 if (key.slice(0, 1) == '_') {
                     continue;
                 }
-                if (!(key in color) && "function" == typeof prop) {
+				
+				if (!(key in color) && "function" == typeof prop) {
+					// 将公有方法注册到超类原型color上，提供便捷的转换的函数
                     // the method found on this object is a) public and b) not
                     // currently supported by the color object. Create an impl that
                     // calls the toModel function and passes that new object
                     // onto the correct method with the args.
+					// 调用前先将别的类型的方法转换到当前类型上面
                     color[key] = convertAndApply(prop);
                 } else if ("function" != typeof prop) {
                     // we have found a public property. create accessor methods
                     // and bind them up correctly
+					// 如果是属性，则加入fields中，用于克隆
                     fields.push(key);
+					
+					// 增加属性的getter和setter方法到子类和超类原型上面。
                     var getter = 'get' + capitalise(key);
                     var setter = 'set' + capitalise(key);
 
@@ -218,14 +231,19 @@ if (!net.brehaut) {
             // get insane. This uses an unrolled 'object' so that F is cached
             // for later use. this is approx a 25% speed improvement
 
+		// 创建一个构造函数
         function F() {}
         F.prototype = proto;
 
+		// 创建工厂函数
         function factory() {
             return new F();
         }
+		
+		// 注册到工厂中
         factories[name] = factory;
 
+		// 在原型上增加克隆函数
         proto.clone = function() {
             var cloned = factory();
             for (var i = 0, j = fields.length; i < j; i++) {
@@ -235,10 +253,12 @@ if (!net.brehaut) {
             return cloned;
         };
 
+		// 在基础原型上面，增加转换函数
         color[to_meth] = function() {
             return factory();
         };
 
+		// 最终把原型保存到registered_models里面，用于记录一共注册过哪些模式
         registered_models.push(proto);
 
         return proto;
@@ -251,6 +271,7 @@ if (!net.brehaut) {
      * registered it has methods programmatically added to manage
      * conversions as needed.
      */
+    // 颜色的基类，这里没用派生组合继承或者es6的class语法，而是自定义了一种基于mixin的集成方式。color是超类，使用registerModel函数用编程的方式注册颜色的模型，而color就是各个模型的基类，用于封装通用方法
     color = {
         /* fromObject takes an argument and delegates to the internal
          * color models to try to create a new instance.
@@ -261,6 +282,8 @@ if (!net.brehaut) {
             }
 
             for (var i = 0, j = registered_models.length; i < j; i++) {
+				// 一个个模式依次匹配颜色字符串，如果哪个匹配上拉，就创建一个这个对象返回
+				// 这里如果哪个模式没有重写fromObject方法，会死循环？？？
                 var nu = registered_models[i].fromObject(o);
                 if (nu) {
                     return nu;
@@ -269,7 +292,7 @@ if (!net.brehaut) {
 
             return object(color);
         },
-
+		// 调用对象的转为字符串
         toString: function() {
             return this.toCSS();
         }
@@ -280,6 +303,7 @@ if (!net.brehaut) {
     /* RGB is the red green blue model. This definition is converted
      * to a template object by registerModel.
      */
+	// 注册RGB模型
     registerModel('RGB', {
         red: 0,
         green: 0,
@@ -290,6 +314,7 @@ if (!net.brehaut) {
          * luminance calcuated according to
          * http://www.poynton.com/notes/colour_and_gamma/ColorFAQ.html#RTFToC9
          */
+		// 获取亮度，不理解0.2126、0.7152、0.0722的出处，http://poynton.ca/notes/colour_and_gamma/ColorFAQ.html#RTFToC9上面也没有相关内容
         getLuminance: function() {
             return (this.red * 0.2126) + (this.green * 0.7152) + (this.blue * 0.0722);
         },
@@ -297,6 +322,7 @@ if (!net.brehaut) {
         /* does an alpha based blend of color onto this. alpha is the
          * amount of 'color' to use. (0 to 1)
          */
+		// 将两种颜色混合在一起。分别对三个通道混合
         blend: function(color, alpha) {
             color = color.toRGB();
             alpha = Math.min(Math.max(alpha, 0), 1);
@@ -330,11 +356,13 @@ if (!net.brehaut) {
             // nothing matchs, not an RGB object
         },
         // 私有变量用_开头
+		// 一个将css字符串转为rgb字面量的数组。一个个匹配，匹配不出来用下一个函数匹配
         _stringParsers: [
             // CSS RGB(A) literal:
             function(css) {
                 css = trim(css);
 
+				// 先匹配ragb数值字面量正则，匹配没有用百分百字面量正则
                 var withInteger = match(rgb_rgba_integer_regex, 255);
                 if (withInteger) {
                     return withInteger;
@@ -360,6 +388,7 @@ if (!net.brehaut) {
             },
 
             function(css) {
+				// 匹配#xxxxxx #xxx形式
                 var lower = css.toLowerCase();
                 if (lower in css_colors) {
                     css = css_colors[lower];
@@ -371,6 +400,7 @@ if (!net.brehaut) {
 
                 css = css.replace(/^#/, '');
 
+				// 确定是6位还是3位。将其位数除3，商去做后续的运算
                 var bytes = css.length / 3;
 
                 var max = Math.pow(16, bytes) - 1;
@@ -382,14 +412,14 @@ if (!net.brehaut) {
                 rgb.alpha = 1;
                 return rgb;
             },
-
+			// 透明特殊处理
             function(css) {
                 if (css.toLowerCase() !== 'transparent') return;
 
                 return transparent;
             }
         ],
-
+		// 一个个匹配，知道有符合位置，都不符合undefined
         _fromCSS: function(css) {
             var color = null;
             for (var i = 0, j = this._stringParsers.length; i < j; i++) {
@@ -397,7 +427,7 @@ if (!net.brehaut) {
                 if (color) return color;
             }
         },
-
+		// RGB对象
         _fromRGB: function(RGB) {
             var newRGB = factories.RGB();
 
@@ -408,7 +438,7 @@ if (!net.brehaut) {
 
             return newRGB;
         },
-
+		// RGBA三个通道和alpha值的数组
         _fromRGBArray: function(RGB) {
             var newRGB = factories.RGB();
 
@@ -498,7 +528,7 @@ if (!net.brehaut) {
         alpha: 0
     });
 
-
+	// 剩余的几种模型略。。。。
     /* Like RGB above, this object describes what will become the HSV
      * template object. This model handles hue, saturation and value.
      * hue is the number of degrees around the color wheel, saturation
